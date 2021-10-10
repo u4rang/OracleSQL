@@ -1,0 +1,113 @@
+# Partition 을 Split 하는 방법
+
+
+
+## 상황
+
+- Range Partition 에서 특정 기간의 Partition을 생성하지 않은 경우
+
+- 예제. 2099년 03월 Partition 을 생성하지 않고 2099년 기간의 월 Partition 을 생성
+
+  - 파티션명은 다음과 같은 명명규칙을 갖는다.
+    - PYYYYMM
+  - Index 는 다음과 같다.
+    - [TABLE_OWNER].[TABLE_NAME]_PK
+    - [TABLE_OWNER].[TABLE_NAME]_IX01
+
+  
+
+## 1. Split 대상 Partition 에 대하여 건수 확인
+
+```sql
+SELECT COUNT(1) AS CNT
+  FROM [TABLE_OWNER].[TABLE_NAME] PARTITION(P209904);
+```
+
+
+
+## 2. Split 전 | Partition 에 대한 정보 확인
+
+```sql
+SELECT TABLE_OWNER,
+       TABLE_NAME,
+       PARTITION_NAME,
+       TABLESPACE_NAME,
+       HIGH_VALUE
+  FROM DBA_TAB_PARTITIONS
+ WHERE TABLE_OWNER = '[TABLE_OWNER]'
+   AND TABLE_NAME = '[TABLE_NAME]';
+```
+
+
+
+## 3. Split Partition 수행
+
+```sql
+ALTER TABLE [TABLE_OWNER].[TABLE_NAME]
+SPLIT PARTITION P209904 AT ('20990399999999')
+INTO (PARTITION P209903, PARTITION P209904_02);
+```
+
+
+
+## 4. Partition Name 변경
+
+P209904_02 로 생성된 Partition Name을 P209904 로 변경한다.
+
+```sql
+ALTER TABLE [TABLE_OWNER].[TABLE_NAME]
+RENAME PARTITION P209904_02 TO P209904;
+```
+
+
+
+## 5. Split 후 | Partition 에 대한 정보 확인
+
+```sql
+SELECT TABLE_OWNER,
+       TABLE_NAME,
+       PARTITION_NAME,
+       TABLESPACE_NAME,
+       HIGH_VALUE
+  FROM DBA_TAB_PARTITIONS
+ WHERE TABLE_OWNER = '[TABLE_OWNER]'
+   AND TABLE_NAME = '[TABLE_NAME]';
+```
+
+
+
+## 6. Split 한 Partition 의 Local Index Name 변경
+
+```sql
+ALTER INDEX [TABLE_OWNER].[TABLE_NAME]_PK RENAME PARTITION P209904_02 TO P209904;
+ALTER INDEX [TABLE_OWNER].[TABLE_NAME]_IX01 RENAME PARTITION P209904_02 TO P209904;
+```
+
+
+
+## 7. Unusable Index 에 대해 Rebuild
+
+Table Partition 에 대해 Split 작업이 발생하면 Index 가 Unusable 상태가 되는 경우가 발생하니 확인 후, Rebuild 처리
+
+```sql
+ALTER INDEX [TABLE_OWNER].[TABLE_NAME]_PK
+REBUILD PARTITION P209903 ONLINE;
+ALTER INDEX [TABLE_OWNER].[TABLE_NAME]_PK
+REBUILD PARTITION P209904 ONLINE;
+ALTER INDEX [TABLE_OWNER].[TABLE_NAME]_IX01
+REBUILD PARTITION P209903 ONLINE;
+ALTER INDEX [TABLE_OWNER].[TABLE_NAME]_IX01
+REBUILD PARTITION P209904 ONLINE;
+```
+
+
+
+## 8. Split 후 Partition 에 대한 건수 확인
+
+```sql
+SELECT COUNT(1) AS CNT
+  FROM [TABLE_OWNER].[TABLE_NAME] PARTITION(P209903);
+SELECT COUNT(1) AS CNT
+  FROM [TABLE_OWNER].[TABLE_NAME] PARTITION(P209904);
+```
+
