@@ -1,2 +1,2 @@
 # OracleSQL
-This is SQL for Oracle DBMS
+This is SQL for Oracle DBMS.
